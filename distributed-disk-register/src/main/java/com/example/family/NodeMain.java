@@ -21,7 +21,16 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.*;
 
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+
+import com.example.family.command.Command;
+import com.example.family.command.GetCommand;
+import com.example.family.command.SetCommand;
+
 public class NodeMain {
+    private static final InMemoryStore STORE = new InMemoryStore();
+    private static final CommandParser PARSER = new CommandParser();
 
     private static final int START_PORT = 5555;
     private static final int PRINT_INTERVAL_SECONDS = 10;
@@ -83,29 +92,48 @@ public class NodeMain {
 private static void handleClientTextConnection(Socket client,
                                                NodeRegistry registry,
                                                NodeInfo self) {
-    System.out.println("New TCP client connected: " + client.getRemoteSocketAddress());
+        System.out.println("New TCP client connected: " + client.getRemoteSocketAddress());
+
     try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(client.getInputStream()))) {
+            new InputStreamReader(client.getInputStream()));
+         BufferedWriter writer = new BufferedWriter(
+            new OutputStreamWriter(client.getOutputStream()))) {
 
         String line;
         while ((line = reader.readLine()) != null) {
             String text = line.trim();
             if (text.isEmpty()) continue;
 
-            long ts = System.currentTimeMillis();
+            try {
+                Command cmd = PARSER.parse(text);
 
-            // Kendi üstüne de yaz
-            System.out.println("📝 Received from TCP: " + text);
+                if (cmd instanceof SetCommand) {
+                    SetCommand sc = (SetCommand) cmd;
+                    STORE.put(sc.getId(), sc.getMessage());
+                    writer.write("OK\n");
+                    writer.flush();
+                    System.out.println("SET stored id=" + sc.getId());
 
-            ChatMessage msg = ChatMessage.newBuilder()
-                    .setText(text)
-                    .setFromHost(self.getHost())
-                    .setFromPort(self.getPort())
-                    .setTimestamp(ts)
-                    .build();
+                } else if (cmd instanceof GetCommand) {
+                    GetCommand gc = (GetCommand) cmd;
+                    String msg = STORE.get(gc.getId());
+                    if (msg == null) {
+                        writer.write("NOT_FOUND\n");
+                    } else {
+                        writer.write("OK " + msg + "\n");
+                    }
+                    writer.flush();
+                    System.out.println("GET id=" + gc.getId());
 
-            // Tüm family üyelerine broadcast et
-            broadcastToFamily(registry, self, msg);
+                } else {
+                    writer.write("ERROR\n");
+                    writer.flush();
+                }
+
+            } catch (Exception e) {
+                writer.write("ERROR\n");
+                writer.flush();
+            }
         }
 
     } catch (IOException e) {
