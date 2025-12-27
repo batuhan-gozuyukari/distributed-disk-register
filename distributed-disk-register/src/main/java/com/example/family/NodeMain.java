@@ -46,7 +46,7 @@ public class NodeMain {
 
                 System.out.printf("Node started on %s:%d%n", host, port);
 
-                // Eğer bu ilk node ise (port 5555), TCP 6666'da text dinlesin
+                
                 if (port == START_PORT) {
                     startLeaderTextListener(registry, self);
                 }
@@ -63,7 +63,7 @@ public class NodeMain {
     }
 
     private static void startLeaderTextListener(NodeRegistry registry, NodeInfo self) {
-    // Sadece lider (5555 portlu node) bu methodu çağırmalı
+    
     new Thread(() -> {
         try (ServerSocket serverSocket = new ServerSocket(6666)) {
             System.out.printf("Leader listening for text on TCP %s:%d%n",
@@ -94,7 +94,7 @@ private static void handleClientTextConnection(Socket client,
 
             long ts = System.currentTimeMillis();
 
-            // Kendi üstüne de yaz
+            
             System.out.println("📝 Received from TCP: " + text);
 
             ChatMessage msg = ChatMessage.newBuilder()
@@ -104,7 +104,7 @@ private static void handleClientTextConnection(Socket client,
                     .setTimestamp(ts)
                     .build();
 
-            // Tüm family üyelerine broadcast et
+            
             broadcastToFamily(registry, self, msg);
         }
 
@@ -122,7 +122,7 @@ private static void broadcastToFamily(NodeRegistry registry,
     List<NodeInfo> members = registry.snapshot();
 
     for (NodeInfo n : members) {
-        // Kendimize tekrar gönderme
+        
         if (n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()) {
             continue;
         }
@@ -219,7 +219,7 @@ private static void broadcastToFamily(NodeRegistry registry,
         List<NodeInfo> members = registry.snapshot();
 
         for (NodeInfo n : members) {
-            // Kendimizi kontrol etmeyelim
+            
             if (n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()) {
                 continue;
             }
@@ -234,12 +234,12 @@ private static void broadcastToFamily(NodeRegistry registry,
                 FamilyServiceGrpc.FamilyServiceBlockingStub stub =
                         FamilyServiceGrpc.newBlockingStub(channel);
 
-                // Ping gibi kullanıyoruz: cevap bizi ilgilendirmiyor,
-                // sadece RPC'nin hata fırlatmaması önemli.
+                
+                
                 stub.getFamily(Empty.newBuilder().build());
 
             } catch (Exception e) {
-                // Bağlantı yok / node ölmüş → listeden çıkar
+                
                 System.out.printf("Node %s:%d unreachable, removing from family%n",
                         n.getHost(), n.getPort());
                 registry.remove(n);
@@ -250,7 +250,7 @@ private static void broadcastToFamily(NodeRegistry registry,
             }
         }
 
-    }, 5, 10, TimeUnit.SECONDS); // 5 sn sonra başla, 10 sn'de bir kontrol et
+    }, 5, 10, TimeUnit.SECONDS); 
 }
 
 }
