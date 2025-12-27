@@ -40,7 +40,7 @@ public class FamilyServiceImpl extends FamilyServiceGrpc.FamilyServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    // Diğer düğümlerden broadcast mesajı geldiğinde
+    
     @Override
     public void receiveChat(ChatMessage request, StreamObserver<Empty> responseObserver) {
         System.out.println("💬 Incoming message:");
