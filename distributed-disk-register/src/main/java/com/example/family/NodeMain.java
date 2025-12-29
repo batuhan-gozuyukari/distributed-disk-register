@@ -14,7 +14,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.Socket;
 
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.time.LocalDateTime;
@@ -23,7 +22,6 @@ import java.util.concurrent.*;
 
 import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
-
 import com.example.family.command.Command;
 import com.example.family.command.GetCommand;
 import com.example.family.command.SetCommand;
@@ -31,6 +29,7 @@ import com.example.family.command.SetCommand;
 public class NodeMain {
     private static final InMemoryStore STORE = new InMemoryStore();
     private static final CommandParser PARSER = new CommandParser();
+    private static final DiskMessageStore DISK = new DiskMessageStore("messages");
 
     private static final int START_PORT = 5555;
     private static final int PRINT_INTERVAL_SECONDS = 10;
@@ -111,20 +110,32 @@ private static void handleClientTextConnection(Socket client,
                 if (cmd instanceof SetCommand) {
                     SetCommand sc = (SetCommand) cmd;
                     STORE.put(sc.getId(), sc.getMessage());
-                    writer.write("OK\n");
+                    
+                    try {
+                        DISK.write(sc.getId(), sc.getMessage());
+                        writer.write("OK\n");
+                        System.out.println("SET disk stored id=" + sc.getId());
+                    } catch (IOException io) {
+                        writer.write("ERROR\n");
+                        System.out.println("SET disk error id=" + sc.getId() + " : " + io.getMessage());
+                    }
                     writer.flush();
-                    System.out.println("SET stored id=" + sc.getId());
 
                 } else if (cmd instanceof GetCommand) {
                     GetCommand gc = (GetCommand) cmd;
-                    String msg = STORE.get(gc.getId());
-                    if (msg == null) {
-                        writer.write("NOT_FOUND\n");
-                    } else {
-                        writer.write("OK " + msg + "\n");
+                    try {
+                        String msg = DISK.read(gc.getId());
+                        if (msg == null) {
+                            writer.write("NOT_FOUND\n");
+                        } else {
+                            writer.write("OK " + msg + "\n");
+                        }
+                        System.out.println("GET disk id=" + gc.getId());
+                    } catch (IOException io) {
+                        writer.write("ERROR\n");
+                        System.out.println("GET disk error id=" + gc.getId() + " : " + io.getMessage());
                     }
                     writer.flush();
-                    System.out.println("GET id=" + gc.getId());
 
                 } else {
                     writer.write("ERROR\n");
