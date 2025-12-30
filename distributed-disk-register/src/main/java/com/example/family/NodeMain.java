@@ -49,6 +49,7 @@ public class NodeMain {
         Server server = ServerBuilder
                 .forPort(port)
                 .addService(service)
+                .addService(new StorageServiceImpl(DISK))
                 .build()
                 .start();
 
