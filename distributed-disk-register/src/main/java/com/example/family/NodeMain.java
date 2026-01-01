@@ -26,10 +26,15 @@ import com.example.family.command.Command;
 import com.example.family.command.GetCommand;
 import com.example.family.command.SetCommand;
 
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class NodeMain {
     private static final InMemoryStore STORE = new InMemoryStore();
     private static final CommandParser PARSER = new CommandParser();
     private static final DiskMessageStore DISK = new DiskMessageStore("messages");
+    private static final Map<Integer, List<NodeInfo>> ID_TO_REPLICAS = new ConcurrentHashMap<>();
+    private static final ToleranceConfig TCONF = new ToleranceConfig("tolerance.conf");
 
     private static final int START_PORT = 5555;
     private static final int PRINT_INTERVAL_SECONDS = 10;
