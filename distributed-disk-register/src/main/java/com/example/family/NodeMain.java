@@ -5,6 +5,10 @@ import family.FamilyServiceGrpc;
 import family.FamilyView;
 import family.NodeInfo;
 import family.ChatMessage;
+import family.StoredMessage;
+import family.MessageId;
+import family.StoreResult;
+import family.StorageServiceGrpc;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -114,33 +118,62 @@ private static void handleClientTextConnection(Socket client,
                 Command cmd = PARSER.parse(text);
 
                 if (cmd instanceof SetCommand) {
-                    SetCommand sc = (SetCommand) cmd;
-                    STORE.put(sc.getId(), sc.getMessage());
-                    
-                    try {
-                        DISK.write(sc.getId(), sc.getMessage());
-                        writer.write("OK\n");
-                        System.out.println("SET disk stored id=" + sc.getId());
-                    } catch (IOException io) {
-                        writer.write("ERROR\n");
-                        System.out.println("SET disk error id=" + sc.getId() + " : " + io.getMessage());
+                SetCommand sc = (SetCommand) cmd;
+
+                int tol = TCONF.readToleranceOrDefault(2);
+
+                StoredMessage sm = StoredMessage.newBuilder()
+                        .setId(sc.getId())
+                        .setText(sc.getMessage())
+                        .build();
+
+                DISK.write(sc.getId(), sc.getMessage());
+
+                List<NodeInfo> replicas = pickReplicas(registry, self, tol);
+                
+                boolean allOk = true;
+                for (NodeInfo r : replicas) {
+                    if (!grpcStore(r, sm)) {
+                        allOk = false;
                     }
-                    writer.flush();
+                }
+                
+                if (allOk) {
+                    ID_TO_REPLICAS.put(sc.getId(), replicas);
+                    writer.write("OK\n");
+                } else {
+                    writer.write("ERROR\n");
+                }
+
+                writer.flush();
+                System.out.println("SET id=" + sc.getId() + " tol=" + tol + " replicas=" + replicas.size());
+
 
                 } else if (cmd instanceof GetCommand) {
                     GetCommand gc = (GetCommand) cmd;
-                    try {
-                        String msg = DISK.read(gc.getId());
-                        if (msg == null) {
-                            writer.write("NOT_FOUND\n");
-                        } else {
-                            writer.write("OK " + msg + "\n");
-                        }
-                        System.out.println("GET disk id=" + gc.getId());
-                    } catch (IOException io) {
-                        writer.write("ERROR\n");
-                        System.out.println("GET disk error id=" + gc.getId() + " : " + io.getMessage());
+                    
+                    String msg = DISK.read(gc.getId());
+                    if (msg != null && !msg.isEmpty()) {
+                        writer.write("OK " + msg + "\n");
+                        writer.flush();
+                        System.out.println("GET id=" + gc.getId() + " from=leader");
+                        continue;
                     }
+
+                    List<NodeInfo> replicas = ID_TO_REPLICAS.getOrDefault(gc.getId(), List.of());
+
+                    String found = null;
+                    for (NodeInfo r : replicas) {
+                        found = grpcRetrieve(r, gc.getId());
+                        if (found != null) break;
+                    }
+                     if (found == null) {
+                         writer.write("NOT_FOUND\n");
+                         System.out.println("GET id=" + gc.getId() + " NOT_FOUND");
+                        } else {
+                          writer.write("OK " + found + "\n");
+                         System.out.println("GET id=" + gc.getId() + " from=replica");
+                     }
                     writer.flush();
 
                 } else {
@@ -299,5 +332,57 @@ private static void broadcastToFamily(NodeRegistry registry,
 
     }, 5, 10, TimeUnit.SECONDS); 
 }
-
+    private static List<NodeInfo> pickReplicas(NodeRegistry registry, NodeInfo self, int k) {
+        List<NodeInfo> all = registry.snapshot();
+        List<NodeInfo> result = new ArrayList<>();
+    
+        for (NodeInfo n : all) {
+            if (n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()) continue;
+            result.add(n);
+            if (result.size() == k) break;
+        }
+        return result;
+    }
+    
+    private static boolean grpcStore(NodeInfo member, StoredMessage msg) {
+        ManagedChannel ch = null;
+        try {
+            ch = ManagedChannelBuilder
+                    .forAddress(member.getHost(), member.getPort())
+                    .usePlaintext()
+                    .build();
+    
+            StorageServiceGrpc.StorageServiceBlockingStub stub =
+                    StorageServiceGrpc.newBlockingStub(ch);
+    
+            StoreResult res = stub.store(msg);
+            return res.getOk();
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (ch != null) ch.shutdownNow();
+        }
+    }
+    
+    private static String grpcRetrieve(NodeInfo member, int id) {
+        ManagedChannel ch = null;
+        try {
+            ch = ManagedChannelBuilder
+                    .forAddress(member.getHost(), member.getPort())
+                    .usePlaintext()
+                    .build();
+    
+            StorageServiceGrpc.StorageServiceBlockingStub stub =
+                    StorageServiceGrpc.newBlockingStub(ch);
+    
+            StoredMessage m = stub.retrieve(MessageId.newBuilder().setId(id).build());
+    
+            if (m.getText() == null || m.getText().isEmpty()) return null;
+            return m.getText();
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (ch != null) ch.shutdownNow();
+        }
+    }
 }
