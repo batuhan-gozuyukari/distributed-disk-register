@@ -378,4 +378,18 @@ private static void broadcastToFamily(NodeRegistry registry,
             if (ch != null) ch.shutdownNow();
         }
     }
+    
+    private static void startMessageCountPrinter(DiskMessageStore disk, NodeInfo self) {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        scheduler.scheduleAtFixedRate(() -> {
+            int count = disk.countMessages();
+            System.out.printf(
+                    "[COUNT] Node %s:%d stores %d messages%n",
+                    self.getHost(),
+                    self.getPort(),
+                    count
+            );
+        }, 5, 10, TimeUnit.SECONDS);
+    }
 }
