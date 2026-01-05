@@ -39,6 +39,7 @@ public class NodeMain {
     private static final DiskMessageStore DISK = new DiskMessageStore("messages");
     private static final Map<Integer, List<NodeInfo>> ID_TO_REPLICAS = new ConcurrentHashMap<>();
     private static final ToleranceConfig TCONF = new ToleranceConfig("tolerance.conf");
+    private static final java.util.concurrent.atomic.AtomicInteger RR =new java.util.concurrent.atomic.AtomicInteger(0);
 
     private static final int START_PORT = 5555;
     private static final int PRINT_INTERVAL_SECONDS = 10;
@@ -334,34 +335,26 @@ private static void broadcastToFamily(NodeRegistry registry,
 }
     private static List<NodeInfo> pickReplicas(NodeRegistry registry, NodeInfo self, int k) {
         List<NodeInfo> all = registry.snapshot();
-        List<NodeInfo> result = new ArrayList<>();
+        List<NodeInfo> members = new ArrayList<>();
     
+        // kendimizi çıkar
         for (NodeInfo n : all) {
             if (n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()) continue;
-            result.add(n);
-            if (result.size() == k) break;
+            members.add(n);
+        }
+    
+        if (members.isEmpty()) return List.of();
+    
+        if (k > members.size()) k = members.size();
+    
+        int start = Math.floorMod(RR.getAndIncrement(), members.size());
+    
+        List<NodeInfo> result = new ArrayList<>();
+        for(int i = 0; i < k; i++) {
+            int idx = (start + i) % members.size();
+            result.add(members.get(idx));
         }
         return result;
-    }
-    
-    private static boolean grpcStore(NodeInfo member, StoredMessage msg) {
-        ManagedChannel ch = null;
-        try {
-            ch = ManagedChannelBuilder
-                    .forAddress(member.getHost(), member.getPort())
-                    .usePlaintext()
-                    .build();
-    
-            StorageServiceGrpc.StorageServiceBlockingStub stub =
-                    StorageServiceGrpc.newBlockingStub(ch);
-    
-            StoreResult res = stub.store(msg);
-            return res.getOk();
-        } catch (Exception e) {
-            return false;
-        } finally {
-            if (ch != null) ch.shutdownNow();
-        }
     }
     
     private static String grpcRetrieve(NodeInfo member, int id) {
