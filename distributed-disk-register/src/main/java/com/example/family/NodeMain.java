@@ -73,6 +73,7 @@ public class NodeMain {
                 discoverExistingNodes(host, port, registry, self);
                 startFamilyPrinter(registry, self);
                 startHealthChecker(registry, self);
+                startMessageCountPrinter(DISK, self);
 
                 server.awaitTermination();
 
