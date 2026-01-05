@@ -40,4 +40,21 @@ public class DiskMessageStore {
         if (!Files.exists(file)) return null;
         return Files.readString(file, StandardCharsets.UTF_8);
     }
+    
+    public int countMessages() {
+        try {
+            if (!Files.exists(dir)) return 0;
+
+            try (DirectoryStream<Path> stream =
+                         Files.newDirectoryStream(dir, "*.msg")) {
+                int count = 0;
+                for (Path ignored : stream) {
+                    count++;
+                }
+                return count;
+            }
+        } catch (IOException e) {
+            return 0;
+        }
+    }
 }
