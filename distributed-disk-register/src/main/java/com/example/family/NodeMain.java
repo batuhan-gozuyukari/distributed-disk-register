@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NodeMain {
     private static final InMemoryStore STORE = new InMemoryStore();
     private static final CommandParser PARSER = new CommandParser();
-    private static final DiskMessageStore DISK = new DiskMessageStore("messages");
+   
     private static final Map<Integer, List<NodeInfo>> ID_TO_REPLICAS = new ConcurrentHashMap<>();
     private static final ToleranceConfig TCONF = new ToleranceConfig("tolerance.conf");
 
@@ -66,7 +66,7 @@ public class NodeMain {
 
                 
                 if (port == START_PORT) {
-                    startLeaderTextListener(registry, self);
+                    startLeaderTextListener(registry, self, disk);
                 }
 
                 discoverExistingNodes(host, port, registry, self);
@@ -80,7 +80,7 @@ public class NodeMain {
 
     }
 
-    private static void startLeaderTextListener(NodeRegistry registry, NodeInfo self) {
+    private static void startLeaderTextListener(NodeRegistry registry, NodeInfo self, DiskMessageStore disk) {
     
     new Thread(() -> {
         try (ServerSocket serverSocket = new ServerSocket(6666)) {
@@ -89,7 +89,7 @@ public class NodeMain {
 
             while (true) {
                 Socket client = serverSocket.accept();
-                new Thread(() -> handleClientTextConnection(client, registry, self)).start();
+                new Thread(() -> handleClientTextConnection(client, registry, self, disk)).start();
             }
 
         } catch (IOException e) {
@@ -100,7 +100,7 @@ public class NodeMain {
 
 private static void handleClientTextConnection(Socket client,
                                                NodeRegistry registry,
-                                               NodeInfo self) {
+                                               NodeInfo self, DiskMessageStore disk) {
         System.out.println("New TCP client connected: " + client.getRemoteSocketAddress());
 
     try (BufferedReader reader = new BufferedReader(
