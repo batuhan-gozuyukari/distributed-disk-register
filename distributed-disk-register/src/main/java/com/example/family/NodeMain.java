@@ -58,7 +58,7 @@ public class NodeMain {
         Server server = ServerBuilder
                 .forPort(port)
                 .addService(service)
-                .addService(new StorageServiceImpl(DISK))
+                .addService(new StorageServiceImpl(disk))
                 .build()
                 .start();
 
@@ -127,7 +127,7 @@ private static void handleClientTextConnection(Socket client,
                         .setText(sc.getMessage())
                         .build();
 
-                DISK.write(sc.getId(), sc.getMessage());
+                disk.write(sc.getId(), sc.getMessage());
 
                 List<NodeInfo> replicas = pickReplicas(registry, self, tol);
                 
@@ -152,7 +152,7 @@ private static void handleClientTextConnection(Socket client,
                 } else if (cmd instanceof GetCommand) {
                     GetCommand gc = (GetCommand) cmd;
                     
-                    String msg = DISK.read(gc.getId());
+                    String msg = disk.read(gc.getId());
                     if (msg != null && !msg.isEmpty()) {
                         writer.write("OK " + msg + "\n");
                         writer.flush();
