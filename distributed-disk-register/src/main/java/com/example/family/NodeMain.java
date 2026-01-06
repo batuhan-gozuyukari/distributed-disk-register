@@ -46,7 +46,7 @@ public class NodeMain {
     public static void main(String[] args) throws Exception {
         String host = "127.0.0.1";
         int port = findFreePort(START_PORT);
-
+        DiskMessageStore disk = new DiskMessageStore("messages_" + port);
         NodeInfo self = NodeInfo.newBuilder()
                 .setHost(host)
                 .setPort(port)
