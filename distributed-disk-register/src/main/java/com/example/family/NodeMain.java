@@ -332,15 +332,31 @@ private static void broadcastToFamily(NodeRegistry registry,
 
     }, 5, 10, TimeUnit.SECONDS); 
 }
-    private static List<NodeInfo> pickReplicas(NodeRegistry registry, NodeInfo self, int k) {
-        List<NodeInfo> all = registry.snapshot();
+   
+    // GÜNCELLEME: Stage 6 - Load Balancing Logic
+    // messageId parametresi eklendi.
+    private static List<NodeInfo> pickReplicas(NodeRegistry registry, NodeInfo self, int k, int messageId) {
+        // 1. Kendim dışındakileri al
+        List<NodeInfo> candidates = registry.snapshot().stream()
+                .filter(n -> !(n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()))
+                .collect(Collectors.toList());
+
         List<NodeInfo> result = new ArrayList<>();
-    
-        for (NodeInfo n : all) {
-            if (n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()) continue;
-            result.add(n);
-            if (result.size() == k) break;
+        if (candidates.isEmpty()) return result;
+
+        // 2. Modulo ile başlangıç index'ini belirle 
+        // Eğer messageId=100, candidate=3 ise index=1. Hep 1. elemandan başla dağıtmaya.
+        int startIndex = Math.abs(messageId) % candidates.size();
+
+       
+        for (int i = 0; i < candidates.size(); i++) {
+            if (result.size() >= k) break;
+            
+            
+            int currentIndex = (startIndex + i) % candidates.size();
+            result.add(candidates.get(currentIndex));
         }
+        
         return result;
     }
     
