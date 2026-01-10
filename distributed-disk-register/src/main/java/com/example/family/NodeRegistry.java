@@ -19,8 +19,12 @@ public class NodeRegistry {
         nodes.addAll(others);
     }
 
+    // GÜNCELLEME: Stage 6 - Liste her zaman Port numarasına göre sıralı döner.
+    // Böylece Node A ve Node B aynı hesaplamayı yapar.
     public List<NodeInfo> snapshot() {
-        return List.copyOf(nodes);
+        return nodes.stream()
+                .sorted(java.util.Comparator.comparingInt(NodeInfo::getPort))
+                .collect(java.util.stream.Collectors.toList());
     }
 
     public void remove(NodeInfo node) {
