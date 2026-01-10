@@ -70,7 +70,7 @@ public class NodeMain {
                 }
 
                 discoverExistingNodes(host, port, registry, self);
-                startFamilyPrinter(registry, self);
+                startFamilyPrinter(registry, self,disk);
                 startHealthChecker(registry, self);
 
                 server.awaitTermination();
