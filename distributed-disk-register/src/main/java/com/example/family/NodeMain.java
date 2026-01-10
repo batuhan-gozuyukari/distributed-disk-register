@@ -9,6 +9,7 @@ import family.StoredMessage;
 import family.MessageId;
 import family.StoreResult;
 import family.StorageServiceGrpc;
+import java.util.stream.Collectors;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -70,7 +71,7 @@ public class NodeMain {
                 }
 
                 discoverExistingNodes(host, port, registry, self);
-                startFamilyPrinter(registry, self,disk);
+                startFamilyPrinter(registry, self, disk);
                 startHealthChecker(registry, self);
 
                 server.awaitTermination();
@@ -129,7 +130,7 @@ private static void handleClientTextConnection(Socket client,
 
                 disk.write(sc.getId(), sc.getMessage());
 
-                List<NodeInfo> replicas = pickReplicas(registry, self, tol);
+                List<NodeInfo> replicas = pickReplicas(registry, self, tol, sc.getId());
                 
                 boolean allOk = true;
                 for (NodeInfo r : replicas) {
@@ -271,15 +272,19 @@ private static void broadcastToFamily(NodeRegistry registry,
         }
     }
 
-    private static void startFamilyPrinter(NodeRegistry registry, NodeInfo self) {
+    private static void startFamilyPrinter(NodeRegistry registry, NodeInfo self, DiskMessageStore disk) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
         scheduler.scheduleAtFixedRate(() -> {
             List<NodeInfo> members = registry.snapshot();
+            
+            // Stage 6: Diskteki mesaj sayısını okuyup ekrana yazıyoruz
+            int myCount = disk.getStoredMessageCount(); 
+
             System.out.println("======================================");
-            System.out.printf("Family at %s:%d (me)%n", self.getHost(), self.getPort());
+            System.out.printf("Family at %s:%d (me) [Stored Msg: %d]%n", self.getHost(), self.getPort(), myCount);
             System.out.println("Time: " + LocalDateTime.now());
-            System.out.println("Members:");
+            System.out.println("Members: " + members.size());
 
             for (NodeInfo n : members) {
                 boolean isMe = n.getHost().equals(self.getHost()) && n.getPort() == self.getPort();
