@@ -40,4 +40,14 @@ public class DiskMessageStore {
         if (!Files.exists(file)) return null;
         return Files.readString(file, StandardCharsets.UTF_8);
     }
+    // GÜNCELLEME: Stage 6 - Ekrana yazdırmak için dosya sayısını döndürür
+    public int getStoredMessageCount() {
+        if (!Files.exists(dir)) return 0;
+        try (java.util.stream.Stream<Path> stream = Files.list(dir)) {
+            // Sadece .msg dosyalarını say
+            return (int) stream.filter(p -> p.toString().endsWith(".msg")).count();
+        } catch (IOException e) {
+            return 0;
+        }
+    }
 }
