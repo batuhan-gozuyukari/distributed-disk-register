@@ -9,6 +9,7 @@ import family.StoredMessage;
 import family.MessageId;
 import family.StoreResult;
 import family.StorageServiceGrpc;
+import java.util.stream.Collectors;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -70,7 +71,7 @@ public class NodeMain {
                 }
 
                 discoverExistingNodes(host, port, registry, self);
-                startFamilyPrinter(registry, self);
+                startFamilyPrinter(registry, self, disk);
                 startHealthChecker(registry, self);
 
                 server.awaitTermination();
@@ -129,7 +130,7 @@ private static void handleClientTextConnection(Socket client,
 
                 disk.write(sc.getId(), sc.getMessage());
 
-                List<NodeInfo> replicas = pickReplicas(registry, self, tol);
+                List<NodeInfo> replicas = pickReplicas(registry, self, tol, sc.getId());
                 
                 boolean allOk = true;
                 for (NodeInfo r : replicas) {
@@ -271,15 +272,19 @@ private static void broadcastToFamily(NodeRegistry registry,
         }
     }
 
-    private static void startFamilyPrinter(NodeRegistry registry, NodeInfo self) {
+    private static void startFamilyPrinter(NodeRegistry registry, NodeInfo self, DiskMessageStore disk) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
         scheduler.scheduleAtFixedRate(() -> {
             List<NodeInfo> members = registry.snapshot();
+            
+            // Stage 6: Diskteki mesaj sayısını okuyup ekrana yazıyoruz
+            int myCount = disk.getStoredMessageCount(); 
+
             System.out.println("======================================");
-            System.out.printf("Family at %s:%d (me)%n", self.getHost(), self.getPort());
+            System.out.printf("Family at %s:%d (me) [Stored Msg: %d]%n", self.getHost(), self.getPort(), myCount);
             System.out.println("Time: " + LocalDateTime.now());
-            System.out.println("Members:");
+            System.out.println("Members: " + members.size());
 
             for (NodeInfo n : members) {
                 boolean isMe = n.getHost().equals(self.getHost()) && n.getPort() == self.getPort();
@@ -332,15 +337,31 @@ private static void broadcastToFamily(NodeRegistry registry,
 
     }, 5, 10, TimeUnit.SECONDS); 
 }
-    private static List<NodeInfo> pickReplicas(NodeRegistry registry, NodeInfo self, int k) {
-        List<NodeInfo> all = registry.snapshot();
+   
+    // GÜNCELLEME: Stage 6 - Load Balancing Logic
+    // messageId parametresi eklendi.
+    private static List<NodeInfo> pickReplicas(NodeRegistry registry, NodeInfo self, int k, int messageId) {
+        // 1. Kendim dışındakileri al
+        List<NodeInfo> candidates = registry.snapshot().stream()
+                .filter(n -> !(n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()))
+                .collect(Collectors.toList());
+
         List<NodeInfo> result = new ArrayList<>();
-    
-        for (NodeInfo n : all) {
-            if (n.getHost().equals(self.getHost()) && n.getPort() == self.getPort()) continue;
-            result.add(n);
-            if (result.size() == k) break;
+        if (candidates.isEmpty()) return result;
+
+        // 2. Modulo ile başlangıç index'ini belirle 
+        // Eğer messageId=100, candidate=3 ise index=1. Hep 1. elemandan başla dağıtmaya.
+        int startIndex = Math.abs(messageId) % candidates.size();
+
+       
+        for (int i = 0; i < candidates.size(); i++) {
+            if (result.size() >= k) break;
+            
+            
+            int currentIndex = (startIndex + i) % candidates.size();
+            result.add(candidates.get(currentIndex));
         }
+        
         return result;
     }
     

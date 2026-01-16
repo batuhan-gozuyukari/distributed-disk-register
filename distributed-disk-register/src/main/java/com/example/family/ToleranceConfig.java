@@ -20,7 +20,7 @@ public class ToleranceConfig {
             if (!line.contains("=")) return def;
             int val = Integer.parseInt(line.split("=", 2)[1].trim());
             if (val < 1) return 1;
-            if (val > 2) return 2; // Stage4 için sınır
+            if (val > 7) return 7; 
             return val;
         } catch (IOException | NumberFormatException e) {
             return def;
